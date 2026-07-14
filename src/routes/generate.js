@@ -11,7 +11,7 @@ const pexels = require('../services/pexels');
 const shotstack = require('../services/shotstack');
 
 const router = express.Router();
-const upload = multer(); // parses multipart/form-data (no file uploads needed, just fields)
+const upload = multer({ limits: { fieldSize: 2 * 1024 * 1024 } }); // 2MB per field — comfortably covers 30,000-character scripts
 
 const AUDIO_DIR = path.join(__dirname, '..', '..', 'public', 'audio');
 if (!fs.existsSync(AUDIO_DIR)) fs.mkdirSync(AUDIO_DIR, { recursive: true });
@@ -83,26 +83,46 @@ async function processJob(jobId, params) {
 
   // 1) Script
   jobStore.setProgress(jobId, 'Writing script', 10);
-  const finalScript = scriptText && scriptText.split(' ').length > 25
-    ? scriptText
-    : await gemini.generateScriptFromTopic({ topic: topic || scriptText, niche, durationMinutes, language });
+  let finalScript;
+  try {
+    finalScript = scriptText && scriptText.split(' ').length > 25
+      ? scriptText
+      : await gemini.generateScriptFromTopic({ topic: topic || scriptText, niche, durationMinutes, language });
+  } catch (err) {
+    throw new Error(`[Script/Gemini] ${err.message}`);
+  }
 
   // 2) Voiceover
   jobStore.setProgress(jobId, 'Recording voiceover', 30);
-  const audioBuffer = await tts.textToSpeech({ text: finalScript, gender, language });
-  const audioFileName = `${jobId}.mp3`;
-  fs.writeFileSync(path.join(AUDIO_DIR, audioFileName), audioBuffer);
-  const audioUrl = `${publicBaseUrl}/audio/${audioFileName}`;
+  let audioUrl;
+  try {
+    const audioBuffer = await tts.textToSpeech({ text: finalScript, gender, language });
+    const audioFileName = `${jobId}.mp3`;
+    fs.writeFileSync(path.join(AUDIO_DIR, audioFileName), audioBuffer);
+    audioUrl = `${publicBaseUrl}/audio/${audioFileName}`;
+  } catch (err) {
+    throw new Error(`[Voiceover/TTS] ${err.message}`);
+  }
 
   // 3) Matching stock footage
   jobStore.setProgress(jobId, 'Finding visuals', 55);
-  const clips = await pexels.findClipsForScript(finalScript, niche, aspectRatio);
+  let clips;
+  try {
+    clips = await pexels.findClipsForScript(finalScript, niche, aspectRatio);
+  } catch (err) {
+    throw new Error(`[Visuals/Pexels] ${err.message}`);
+  }
 
   // 4) Assemble & render
   jobStore.setProgress(jobId, 'Building your video', 70);
   const totalDurationSeconds = Math.max(20, durationMinutes * 60);
   const edit = shotstack.buildEdit({ clips, audioUrl, aspectRatio, totalDurationSeconds });
-  const renderId = await shotstack.submitRender(edit);
+  let renderId;
+  try {
+    renderId = await shotstack.submitRender(edit);
+  } catch (err) {
+    throw new Error(`[Render/Shotstack] ${err.message}`);
+  }
 
   // 5) Poll Shotstack until done
   let status = 'queued';
