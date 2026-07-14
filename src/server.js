@@ -1,3 +1,8 @@
+// Polyfill for older Node versions where global crypto isn't available
+if (!global.crypto) {
+  global.crypto = require('crypto').webcrypto;
+}
+
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
