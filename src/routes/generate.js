@@ -6,7 +6,7 @@ const { v4: uuidv4 } = require('uuid');
 
 const jobStore = require('../jobStore');
 const gemini = require('../services/gemini');
-const elevenlabs = require('../services/elevenlabs');
+const tts = require('../services/tts');
 const pexels = require('../services/pexels');
 const shotstack = require('../services/shotstack');
 
@@ -89,7 +89,7 @@ async function processJob(jobId, params) {
 
   // 2) Voiceover
   jobStore.setProgress(jobId, 'Recording voiceover', 30);
-  const audioBuffer = await elevenlabs.textToSpeech({ text: finalScript, gender });
+  const audioBuffer = await tts.textToSpeech({ text: finalScript, gender, language });
   const audioFileName = `${jobId}.mp3`;
   fs.writeFileSync(path.join(AUDIO_DIR, audioFileName), audioBuffer);
   const audioUrl = `${publicBaseUrl}/audio/${audioFileName}`;
