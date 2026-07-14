@@ -1,7 +1,7 @@
 const axios = require('axios');
 const config = require('../config');
 
-const MODEL = 'gemini-2.0-flash';
+const MODEL = 'gemini-2.5-flash';
 
 /**
  * Turns a short topic into a full narration script suitable for a
