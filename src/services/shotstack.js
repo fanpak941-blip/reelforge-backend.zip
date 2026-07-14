@@ -1,10 +1,9 @@
 const axios = require('axios');
 const config = require('../config');
-
 function baseUrl() {
-  // 'sandbox' = free, watermarked, good for testing
+  // 'stage' = free, watermarked, good for testing
   // 'v1' = production/paid, no watermark
-  return `https://api.shotstack.io/${config.shotstack.env}`;
+  return `https://api.shotstack.io/edit/${config.shotstack.env}`;
 }
 
 function resolutionFor(aspectRatio) {
