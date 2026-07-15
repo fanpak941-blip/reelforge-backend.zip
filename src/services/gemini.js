@@ -29,14 +29,21 @@ Rules:
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${config.gemini.apiKey}`;
 
-  const { data } = await axios.post(
-    url,
-    {
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.8, maxOutputTokens: 4096 },
-    },
-    { headers: { 'Content-Type': 'application/json' } }
-  );
+  let data;
+  try {
+    const response = await axios.post(
+      url,
+      {
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { temperature: 0.8, maxOutputTokens: 4096 },
+      },
+      { headers: { 'Content-Type': 'application/json' } }
+    );
+    data = response.data;
+  } catch (err) {
+    const upstreamMessage = err.response?.data?.error?.message || err.message;
+    throw new Error(`Gemini request failed: ${upstreamMessage}`);
+  }
 
   const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
   if (!text) throw new Error('Gemini did not return a script. Try again.');
