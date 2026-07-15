@@ -1,4 +1,4 @@
-const EdgeTTS = require('msedge-tts');
+const { MsEdgeTTS, OUTPUT_FORMAT } = require('msedge-tts');
 
 const VOICE_MAP = {
   warm_friendly: 'en-US-JennyNeural',
@@ -19,10 +19,17 @@ const VOICE_MAP = {
 async function generateTTS(text, language, tone) {
   const lang = (language || 'en').toLowerCase();
   const voiceName = VOICE_MAP[tone] || VOICE_MAP[lang] || VOICE_MAP['en'];
+
+  const tts = new MsEdgeTTS();
+  await tts.setMetadata(voiceName, OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
   
-  const tts = new EdgeTTS();
-  const { audio } = await tts.ttsPromise(text, voiceName);
-  return audio;
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    const readable = tts.toStream(text);
+    readable.on('data', chunk => chunks.push(chunk));
+    readable.on('end', () => resolve(Buffer.concat(chunks)));
+    readable.on('error', reject);
+  });
 }
 
 module.exports = { generateTTS };
