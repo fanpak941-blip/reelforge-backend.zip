@@ -3,8 +3,6 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 
-const VOICES_DIR = process.env.PIPER_VOICES_DIR || '/root/.local/share/piper/voices';
-
 const ENGLISH_VOICE_TONES = {
   warm_friendly: 'en_US-lessac-medium',
   energetic_male: 'en_US-ryan-medium',
@@ -32,12 +30,13 @@ function getVoice(language, tone) {
   return LANGUAGE_VOICES[lang] || LANGUAGE_VOICES['en'];
 }
 
-async function generateTTS(text, language = 'en', tone = 'warm_friendly') {
+async function generateTTS(text, language, tone) {
   const voice = getVoice(language, tone);
-  const tmpFile = path.join(os.tmpdir(), `tts_${Date.now()}.wav`);
+  const tmpFile = path.join(os.tmpdir(), 'tts_' + Date.now() + '.wav');
 
   try {
-    const cmd = `echo "${text.replace(/"/g, '\\"').replace(/`/g, '\\`')}" | piper --model ${voice}--data-dir /root/.local/share/piper
+    const safeText = text.replace(/"/g, '\\"').replace(/`/g, '\\`');
+    const cmd = 'echo "' + safeText + '" | piper --model ' + voice + ' --data-dir /root/.local/share/piper --output_file ' + tmpFile;
     execSync(cmd, { stdio: 'pipe' });
 
     const audioBuffer = fs.readFileSync(tmpFile);
@@ -45,7 +44,7 @@ async function generateTTS(text, language = 'en', tone = 'warm_friendly') {
     return audioBuffer;
   } catch (err) {
     if (fs.existsSync(tmpFile)) fs.unlinkSync(tmpFile);
-    throw new Error(`TTS failed: ${err.message}`);
+    throw new Error('TTS failed: ' + err.message);
   }
 }
 
