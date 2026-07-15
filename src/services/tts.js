@@ -20,15 +20,18 @@ async function generateTTS(text, language, tone) {
   const lang = (language || 'en').toLowerCase();
   const voiceName = VOICE_MAP[tone] || VOICE_MAP[lang] || VOICE_MAP['en'];
 
-  const tts = new MsEdgeTTS();
-  await tts.setMetadata(voiceName, OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
-  const { audio } = await tts.toStream(text);
-  
-  return new Promise((resolve, reject) => {
-    const chunks = [];
-    audio.on('data', chunk => chunks.push(chunk));
-    audio.on('end', () => resolve(Buffer.concat(chunks)));
-    audio.on('error', reject);
+  return new Promise(async (resolve, reject) => {
+    try {
+      const tts = new MsEdgeTTS();
+      await tts.setMetadata(voiceName, OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
+      const chunks = [];
+      const readable = tts.toStream(text);
+      readable.on('data', chunk => chunks.push(chunk));
+      readable.on('end', () => resolve(Buffer.concat(chunks)));
+      readable.on('error', reject);
+    } catch(err) {
+      reject(err);
+    }
   });
 }
 
