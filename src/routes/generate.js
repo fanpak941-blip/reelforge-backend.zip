@@ -11,10 +11,31 @@ const pexels = require('../services/pexels');
 const shotstack = require('../services/shotstack');
 
 const router = express.Router();
-const upload = multer({ limits: { fieldSize: 2 * 1024 * 1024 } }); // 2MB per field — comfortably covers 30,000-character scripts
+const upload = multer({ limits: { fieldSize: 2 * 1024 * 1024 } }); // 2MB per field — covers 30,000-char scripts
 
 const AUDIO_DIR = path.join(__dirname, '..', '..', 'public', 'audio');
 if (!fs.existsSync(AUDIO_DIR)) fs.mkdirSync(AUDIO_DIR, { recursive: true });
+
+// POST /api/write-script -> "Write Script for Me" button.
+// Just generates the script text and returns it — does NOT start a video.
+router.post('/write-script', upload.none(), async (req, res) => {
+  try {
+    const { topic, niche, wordCount, language } = req.body;
+    if (!topic) return res.status(400).json({ error: 'Please provide a topic or title.' });
+
+    const script = await gemini.generateScriptFromTopic({
+      topic,
+      niche: niche || 'general',
+      wordCount: Number(wordCount) || 300,
+      language: language || 'English',
+    });
+
+    res.json({ script });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message || 'Failed to write script.' });
+  }
+});
 
 // POST /api/generate  -> kicks off a video generation job, returns { jobId } immediately
 router.post('/generate', upload.none(), async (req, res) => {
@@ -23,11 +44,13 @@ router.post('/generate', upload.none(), async (req, res) => {
       scriptText,
       topic,
       niche,
-      durationMinutes,
       language,
       gender,
       aspectRatio,
       style,
+      voiceTone,
+      musicStyle,
+      captionStyle,
     } = req.body;
 
     if (!scriptText && !topic) {
@@ -41,19 +64,18 @@ router.post('/generate', upload.none(), async (req, res) => {
     const jobId = uuidv4();
     jobStore.createJob(jobId);
 
-    // Figure out the public base URL of THIS server (needed so Shotstack can
-    // fetch the voiceover file we generate below).
     const publicBaseUrl = `${req.protocol}://${req.get('host')}`;
 
-    // Run the actual pipeline in the background; respond to the client immediately.
     processJob(jobId, {
       scriptText,
       topic,
       niche: niche || 'general',
-      durationMinutes: Number(durationMinutes) || 3,
       language: language || 'English',
       gender: gender || 'female',
       aspectRatio: aspectRatio || '9:16',
+      voiceTone: voiceTone || null,
+      musicStyle: musicStyle || 'none',
+      captionStyle: captionStyle || 'classic_white',
       publicBaseUrl,
       usingFallbackStyle,
     }).catch((err) => {
@@ -77,8 +99,8 @@ router.get('/generate/:jobId/status', (req, res) => {
 
 async function processJob(jobId, params) {
   const {
-    scriptText, topic, niche, durationMinutes, language, gender, aspectRatio, publicBaseUrl,
-    usingFallbackStyle,
+    scriptText, topic, niche, language, gender, aspectRatio, publicBaseUrl,
+    voiceTone, musicStyle, captionStyle, usingFallbackStyle,
   } = params;
 
   // 1) Script
@@ -87,16 +109,21 @@ async function processJob(jobId, params) {
   try {
     finalScript = scriptText && scriptText.split(' ').length > 25
       ? scriptText
-      : await gemini.generateScriptFromTopic({ topic: topic || scriptText, niche, durationMinutes, language });
+      : await gemini.generateScriptFromTopic({ topic: topic || scriptText, niche, durationMinutes: 3, language });
   } catch (err) {
     throw new Error(`[Script/Gemini] ${err.message}`);
   }
+
+  // Auto-duration: video length is always derived from the actual script
+  // length (≈150 spoken words/minute) — no manual duration picker needed.
+  const wordCount = finalScript.split(/\s+/).filter(Boolean).length;
+  const totalDurationSeconds = Math.max(20, Math.round((wordCount / 150) * 60));
 
   // 2) Voiceover
   jobStore.setProgress(jobId, 'Recording voiceover', 30);
   let audioUrl;
   try {
-    const audioBuffer = await tts.textToSpeech({ text: finalScript, gender, language });
+    const audioBuffer = await tts.textToSpeech({ text: finalScript, gender, language, voiceTone });
     const audioFileName = `${jobId}.mp3`;
     fs.writeFileSync(path.join(AUDIO_DIR, audioFileName), audioBuffer);
     audioUrl = `${publicBaseUrl}/audio/${audioFileName}`;
@@ -115,8 +142,7 @@ async function processJob(jobId, params) {
 
   // 4) Assemble & render
   jobStore.setProgress(jobId, 'Building your video', 70);
-  const totalDurationSeconds = Math.max(20, durationMinutes * 60);
-  const edit = shotstack.buildEdit({ clips, audioUrl, aspectRatio, totalDurationSeconds });
+  const edit = shotstack.buildEdit({ clips, audioUrl, aspectRatio, totalDurationSeconds, musicStyle, captionStyle });
   let renderId;
   try {
     renderId = await shotstack.submitRender(edit);
@@ -138,10 +164,9 @@ async function processJob(jobId, params) {
       break;
     }
     if (status === 'failed') {
-      throw new Error(render.error || 'Video rendering failed.');
+      throw new Error(`[Render/Shotstack] ${render.error || 'Video rendering failed.'}`);
     }
 
-    // Map Shotstack's stages to a friendly progress percentage (70% -> 98%)
     const stageProgress = { queued: 72, fetching: 78, rendering: 88, saving: 95 };
     jobStore.setProgress(jobId, 'Rendering video', stageProgress[status] || 80);
   }
@@ -151,6 +176,7 @@ async function processJob(jobId, params) {
   jobStore.completeJob(jobId, {
     videoPath: videoUrl,
     script: finalScript,
+    durationSeconds: totalDurationSeconds,
     note: usingFallbackStyle
       ? 'AI Avatar / Image-to-Video / Mixed styles are coming in Phase 2 — this video was generated using real-life stock footage instead.'
       : undefined,
