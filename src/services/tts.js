@@ -8,7 +8,7 @@ const VOICES_DIR = process.env.PIPER_VOICES_DIR || '/app/voices';
 
 // 5 distinct English tones, using real (confirmed) Piper voice names.
 const ENGLISH_VOICE_TONES = {
-  warm_friendly: 'en_US-amy-medium',
+  warm_friendly:  en_US-lessac-medium
   energetic_male: 'en_US-ryan-medium',
   calm_female: 'en_US-lessac-medium',
   deep_authoritative: 'en_US-john-medium',
