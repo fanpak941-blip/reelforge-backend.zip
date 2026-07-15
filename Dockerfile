@@ -12,8 +12,13 @@ RUN apt-get update && apt-get install -y \
 # Install Piper TTS
 RUN pip3 install piper-tts --break-system-packages
 
-# Download voices (errors ab nahi chhupengi)
+# English voices (5 tones)
 RUN python3 -m piper.download_voices en_US-lessac-medium
+RUN python3 -m piper.download_voices en_US-ryan-medium
+RUN python3 -m piper.download_voices en_US-john-medium
+RUN python3 -m piper.download_voices en_US-hfc_female-medium
+
+# Other languages
 RUN python3 -m piper.download_voices hi_IN-dhruva-medium
 RUN python3 -m piper.download_voices es_ES-mls_10246-low
 RUN python3 -m piper.download_voices fr_FR-mls_1840-low
