@@ -37,7 +37,7 @@ async function generateTTS(text, language = 'en', tone = 'warm_friendly') {
   const tmpFile = path.join(os.tmpdir(), `tts_${Date.now()}.wav`);
 
   try {
-    const cmd = `echo "${text.replace(/"/g, '\\"').replace(/`/g, '\\`')}" | piper --model ${voice} --output_file ${tmpFile}`;
+    const cmd = `echo "${text.replace(/"/g, '\\"').replace(/`/g, '\\`')}" | piper --model ${voice}--data-dir /root/.local/share/piper
     execSync(cmd, { stdio: 'pipe' });
 
     const audioBuffer = fs.readFileSync(tmpFile);
