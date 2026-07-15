@@ -22,17 +22,14 @@ async function generateTTS(text, language, tone) {
 
   const tts = new MsEdgeTTS();
   await tts.setMetadata(voiceName, OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
-
-  const audioData = await new Promise((resolve, reject) => {
+  const { audio } = await tts.toStream(text);
+  
+  return new Promise((resolve, reject) => {
     const chunks = [];
-    tts.toStream(text, (readable) => {
-      readable.on('data', chunk => chunks.push(chunk));
-      readable.on('end', () => resolve(Buffer.concat(chunks)));
-      readable.on('error', reject);
-    });
+    audio.on('data', chunk => chunks.push(chunk));
+    audio.on('end', () => resolve(Buffer.concat(chunks)));
+    audio.on('error', reject);
   });
-
-  return audioData;
 }
 
 module.exports = { generateTTS };
