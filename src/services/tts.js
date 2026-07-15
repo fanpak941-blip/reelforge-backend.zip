@@ -5,7 +5,6 @@ const os = require('os');
 
 const VOICES_DIR = process.env.PIPER_VOICES_DIR || '/root/.local/share/piper/voices';
 
-// 5 distinct English tones, using real (confirmed) voices
 const ENGLISH_VOICE_TONES = {
   warm_friendly: 'en_US-lessac-medium',
   energetic_male: 'en_US-ryan-medium',
@@ -16,8 +15,9 @@ const ENGLISH_VOICE_TONES = {
 
 const LANGUAGE_VOICES = {
   en: 'en_US-lessac-medium',
-  hi: 'hi_IN-dhruva-medium',
-  ur: 'hi_IN-dhruva-medium', // fallback
+  english: 'en_US-lessac-medium',
+  hi: 'en_US-lessac-medium',
+  ur: 'en_US-lessac-medium',
   es: 'es_ES-mls_10246-low',
   fr: 'fr_FR-mls_1840-low',
   de: 'de_DE-thorsten-low',
@@ -25,10 +25,11 @@ const LANGUAGE_VOICES = {
 };
 
 function getVoice(language, tone) {
-  if (language === 'en' && tone && ENGLISH_VOICE_TONES[tone]) {
+  const lang = (language || 'en').toLowerCase();
+  if ((lang === 'en' || lang === 'english') && tone && ENGLISH_VOICE_TONES[tone]) {
     return ENGLISH_VOICE_TONES[tone];
   }
-  return LANGUAGE_VOICES[language] || LANGUAGE_VOICES['en'];
+  return LANGUAGE_VOICES[lang] || LANGUAGE_VOICES['en'];
 }
 
 async function generateTTS(text, language = 'en', tone = 'warm_friendly') {
@@ -36,7 +37,7 @@ async function generateTTS(text, language = 'en', tone = 'warm_friendly') {
   const tmpFile = path.join(os.tmpdir(), `tts_${Date.now()}.wav`);
 
   try {
-    const cmd = `echo "${text.replace(/"/g, '\\"')}" | piper --model ${voice} --output_file ${tmpFile}`;
+    const cmd = `echo "${text.replace(/"/g, '\\"').replace(/`/g, '\\`')}" | piper --model ${voice} --output_file ${tmpFile}`;
     execSync(cmd, { stdio: 'pipe' });
 
     const audioBuffer = fs.readFileSync(tmpFile);
