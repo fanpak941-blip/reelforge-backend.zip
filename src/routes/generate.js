@@ -124,7 +124,7 @@ async function processJob(jobId, params) {
   let audioUrl;
   try {
     const audioBuffer = await tts.textToSpeech({ text: finalScript, gender, language, voiceTone });
-    const audioFileName = `${jobId}.mp3`;
+    const audioFileName = `${jobId}.wav`;
     fs.writeFileSync(path.join(AUDIO_DIR, audioFileName), audioBuffer);
     audioUrl = `${publicBaseUrl}/audio/${audioFileName}`;
   } catch (err) {
