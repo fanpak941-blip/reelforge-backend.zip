@@ -1,36 +1,29 @@
-FROM node:20-slim
+FROM debian:bookworm-slim
 
-# Install Python + Piper TTS (self-hosted, 100% free neural voices, no API key ever needed)
-RUN apt-get update && apt-get install -y python3 python3-pip curl && rm -rf /var/lib/apt/lists/*
-RUN pip3 install --break-system-packages piper-tts
+# System dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    python3 \
+    python3-pip \
+    nodejs \
+    npm \
+    && rm -rf /var/lib/apt/lists/*
 
-# Pre-download every voice model we use, so the running app never needs to
-# reach the internet for TTS — this also makes the Docker image itself the
-# only thing that needs to build successfully once.
-RUN mkdir -p /app/voices && \
-    for voice in \
-      en_US-amy-medium \
-      en_US-ryan-medium \
-      en_US-lessac-medium \
-      en_US-john-medium \
-      en_US-hfc_female-medium \
-      hi_IN-pratham-medium \
-      hi_IN-priyamvada-medium \
-      es_ES-davefx-medium \
-      es_ES-sharvard-medium \
-      fr_FR-tom-medium \
-      fr_FR-siwis-medium \
-      de_DE-thorsten-medium \
-      de_DE-kerstin-low \
-      ar_JO-kareem-medium \
-    ; do \
-      echo "warming up voice download" | piper --model "$voice" --data-dir /app/voices --download-dir /app/voices --output_file /tmp/_warm.wav || true; \
-    done && rm -f /tmp/_warm.wav
+# Install Piper TTS
+RUN pip3 install piper-tts --break-system-packages
+
+# Download voices (errors ab nahi chhupengi)
+RUN python3 -m piper.download_voices en_US-lessac-medium
+RUN python3 -m piper.download_voices hi_IN-dhruva-medium
+RUN python3 -m piper.download_voices es_ES-mls_10246-low
+RUN python3 -m piper.download_voices fr_FR-mls_1840-low
+RUN python3 -m piper.download_voices de_DE-thorsten-low
+RUN python3 -m piper.download_voices ar_JO-kareem-low
 
 WORKDIR /app
 COPY package*.json ./
-RUN npm install --omit=dev
+RUN npm install
 COPY . .
 
 EXPOSE 3000
-CMD ["npm", "start"]
+CMD ["node", "src/index.js"]
