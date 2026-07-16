@@ -140,18 +140,44 @@ function buildEdit({ clips, audioUrl, aspectRatio, totalDurationSeconds, musicSt
   return { timeline, output: { format: 'mp4', size } };
 }
 
+// Pulls Shotstack's actual validation error out of the response instead of
+// letting axios throw a generic "Request failed with status code 400".
+function extractShotstackError(err) {
+  const data = err.response?.data;
+  if (data) {
+    // Shotstack typically returns { message, response: { error / details } }
+    const detail =
+      data.response?.error ||
+      data.response?.message ||
+      data.message ||
+      (Array.isArray(data.response?.details) ? data.response.details.join('; ') : null) ||
+      JSON.stringify(data);
+    const status = err.response?.status;
+    return new Error(`Shotstack ${status ? `(${status}) ` : ''}${detail}`);
+  }
+  return err;
+}
+
 async function submitRender(edit) {
-  const { data } = await axios.post(`${baseUrl()}/render`, edit, {
-    headers: { 'x-api-key': config.shotstack.apiKey, 'Content-Type': 'application/json' },
-  });
-  return data.response.id;
+  try {
+    const { data } = await axios.post(`${baseUrl()}/render`, edit, {
+      headers: { 'x-api-key': config.shotstack.apiKey, 'Content-Type': 'application/json' },
+    });
+    return data.response.id;
+  } catch (err) {
+    throw extractShotstackError(err);
+  }
 }
 
 async function getRenderStatus(renderId) {
-  const { data } = await axios.get(`${baseUrl()}/render/${renderId}`, {
-    headers: { 'x-api-key': config.shotstack.apiKey },
-  });
-  return data.response;
+  try {
+    const { data } = await axios.get(`${baseUrl()}/render/${renderId}`, {
+      headers: { 'x-api-key': config.shotstack.apiKey },
+    });
+    return data.response;
+  } catch (err) {
+    throw extractShotstackError(err);
+  }
 }
 
-module.exports = { buildEdit, submitRender, getRenderStatus, CAPTION_STYLES };
+module.exports = { buildEdit, submitRender, getRenderStatus };
