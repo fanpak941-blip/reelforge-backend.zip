@@ -106,4 +106,13 @@ async function textToSpeech({ text, gender, language, voiceTone }) {
   return Buffer.concat(audioBuffers);
 }
 
-module.exports = { textToSpeech, ENGLISH_VOICE_TONES };
+/**
+ * Matches the exact call signature used by routes/generate.js:
+ *   tts.generateTTS(finalScript, language, voiceTone)
+ * (positional args, no gender passed — defaults to female voice)
+ */
+async function generateTTS(text, language, voiceTone) {
+  return textToSpeech({ text, gender: 'female', language, voiceTone });
+}
+
+module.exports = { textToSpeech, generateTTS, ENGLISH_VOICE_TONES };
