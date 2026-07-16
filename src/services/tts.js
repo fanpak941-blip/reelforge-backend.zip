@@ -142,4 +142,4 @@ async function generateTTS(text, language, voiceTone) {
   return textToSpeech({ text, gender: 'female', language, voiceTone });
 }
 
-module.exports = { textToSpeech, generateTTS, ENGLISH_VOICE_TONES };
+module.exports = { generateTTS, textToSpeech };
