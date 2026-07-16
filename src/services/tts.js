@@ -59,11 +59,14 @@ function sleep(ms) {
 // of failing the whole video job on one bad connection.
 const MAX_RETRIES = 4;
 
+const MP3_FORMAT = Constants.OUTPUT_FORMAT.AUDIO_24KHZ_96KBITRATE_MONO_MP3;
+if (!MP3_FORMAT) {
+  throw new Error('Edge-TTS: MP3 output format constant not found — check @andresaya/edge-tts Constants.OUTPUT_FORMAT.');
+}
+
 async function synthesizeChunkOnce(text, voice) {
   const tts = new EdgeTTS();
-  await tts.synthesize(text, voice, {
-    outputFormat: Constants.OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3,
-  });
+  await tts.synthesize(text, voice, { outputFormat: MP3_FORMAT });
   const buffer = tts.toBuffer();
   if (!buffer || buffer.length === 0) {
     throw new Error('Edge-TTS returned empty audio.');
