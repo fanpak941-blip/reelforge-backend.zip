@@ -27,20 +27,16 @@ const MUSIC_PRESETS = {
 const CAPTION_STYLES = {
   classic_white: {
     font: { color: '#FFFFFF', family: 'Montserrat ExtraBold', size: 44, lineHeight: 1, stroke: '#000000', strokeWidth: 4 },
-    margin: { bottom: 0.14 },
   },
   yellow_pop: {
     font: { color: '#FFD400', family: 'Montserrat ExtraBold', size: 46, lineHeight: 1, stroke: '#000000', strokeWidth: 4 },
-    margin: { bottom: 0.14 },
   },
   black_box: {
     font: { color: '#FFFFFF', family: 'Montserrat ExtraBold', size: 40, lineHeight: 1 },
     background: { color: '#000000', opacity: 0.75, borderRadius: 12, padding: 20 },
-    margin: { bottom: 0.14 },
   },
   neon_green: {
     font: { color: '#39FF14', family: 'Montserrat ExtraBold', size: 44, lineHeight: 1, stroke: '#000000', strokeWidth: 4 },
-    margin: { bottom: 0.14 },
   },
   minimal_top: {
     font: { color: '#FFFFFF', family: 'Montserrat', size: 32, lineHeight: 1, stroke: '#000000', strokeWidth: 2 },
@@ -48,25 +44,20 @@ const CAPTION_STYLES = {
   },
   bold_red: {
     font: { color: '#FF3B30', family: 'Montserrat ExtraBold', size: 46, lineHeight: 1, stroke: '#000000', strokeWidth: 4 },
-    margin: { bottom: 0.14 },
   },
   gradient_blue: {
     font: { color: '#4FC3F7', family: 'Montserrat ExtraBold', size: 44, lineHeight: 1, stroke: '#0D1B2A', strokeWidth: 4 },
-    margin: { bottom: 0.14 },
   },
   pink_highlight: {
     font: { color: '#D6006D', family: 'Montserrat ExtraBold', size: 40, lineHeight: 1 },
     background: { color: '#FFFFFF', opacity: 0.9, borderRadius: 10, padding: 16 },
-    margin: { bottom: 0.14 },
   },
   large_center: {
     font: { color: '#FFFFFF', family: 'Montserrat ExtraBold', size: 56, lineHeight: 1, stroke: '#000000', strokeWidth: 5 },
-    margin: { bottom: 0.4 },
   },
   subtitle_classic: {
     font: { color: '#FFFFFF', family: 'Open Sans', size: 28, lineHeight: 1 },
     background: { color: '#000000', opacity: 0.6, borderRadius: 4, padding: 10 },
-    margin: { bottom: 0.08 },
   },
 };
 
