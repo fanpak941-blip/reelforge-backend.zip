@@ -1,37 +1,39 @@
-const { EdgeTTS, Constants } = require('@andresaya/edge-tts');
+const axios = require('axios');
+const config = require('../config');
 
-// Microsoft Edge neural voices are 100% free and have no character quota.
+// ElevenLabs "premade" voices — available on every account, no extra setup needed.
 const ENGLISH_VOICE_TONES = {
-  warm_friendly: 'en-US-JennyMultilingualNeural',
-  energetic_male: 'en-US-GuyNeural',
-  calm_female: 'en-US-AriaNeural',
-  deep_authoritative: 'en-US-DavisNeural',
-  professional_female: 'en-US-SaraNeural',
-};
-const VOICE_MAP = {
-  english: { male: 'en-US-GuyNeural', female: 'en-US-AriaNeural' },
-  urdu: { male: 'ur-PK-AsadNeural', female: 'ur-PK-UzmaNeural' },
-  hindi: { male: 'hi-IN-MadhurNeural', female: 'hi-IN-SwaraNeural' },
-  spanish: { male: 'es-ES-AlvaroNeural', female: 'es-ES-ElviraNeural' },
-  french: { male: 'fr-FR-HenriNeural', female: 'fr-FR-DeniseNeural' },
-  german: { male: 'de-DE-ConradNeural', female: 'de-DE-KatjaNeural' },
-  arabic: { male: 'ar-SA-HamedNeural', female: 'ar-SA-ZariyahNeural' },
+  warm_friendly: 'EXAVITQu4vr4xnSDxMaL',    // Bella — soft, warm female
+  energetic_male: 'TxGEqnHWrfWFTfGW9XjX',   // Josh — energetic male
+  calm_female: '21m00Tcm4TlvDq8ikWAM',      // Rachel — calm, clear female
+  deep_authoritative: 'pNInz6obpgDQGcFmaJgB', // Adam — deep male
+  professional_female: 'AZnzlk1XvdvUeBnXmlld', // Domi — confident female
 };
 
-function pickVoice(language, gender, voiceTone) {
+// For non-English languages we use the multilingual model with a
+// male/female premade voice — ElevenLabs' multilingual model handles
+// pronunciation in the target language automatically.
+const GENDER_VOICE = {
+  female: '21m00Tcm4TlvDq8ikWAM', // Rachel
+  male: 'ErXwobaYiN019PkySvjV',   // Antoni
+};
+
+function pickVoiceId(language, gender, voiceTone) {
   const lang = (language || 'english').toLowerCase();
   if (lang === 'english' && voiceTone && ENGLISH_VOICE_TONES[voiceTone]) {
     return ENGLISH_VOICE_TONES[voiceTone];
   }
   const g = (gender || 'female').toLowerCase() === 'male' ? 'male' : 'female';
-  const set = VOICE_MAP[lang] || VOICE_MAP.english;
-  return set[g];
+  return GENDER_VOICE[g];
 }
 
-// Edge-TTS can be unreliable on long single requests, so we still split the
-// script into safe-sized chunks (by sentence), synthesize each separately,
-// then stitch the MP3 buffers together.
-const MAX_CHARS_PER_CHUNK = 400;
+function isEnglish(language) {
+  return (language || 'english').toLowerCase() === 'english';
+}
+
+// Keep individual requests a reasonable size — safe across all ElevenLabs
+// plan tiers and keeps a single flaky request from ruining a huge script.
+const MAX_CHARS_PER_CHUNK = 2000;
 function splitTextForTTS(text) {
   const sentences = text.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [text];
   const chunks = [];
@@ -54,53 +56,76 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-// Microsoft's Edge Read Aloud service occasionally drops connections
-// (it's not an officially supported API). We retry automatically instead
-// of failing the whole video job on one bad connection.
-const MAX_RETRIES = 4;
+const MAX_RETRIES = 3;
 
-const MP3_FORMAT = Constants.OUTPUT_FORMAT.AUDIO_24KHZ_96KBITRATE_MONO_MP3;
-if (!MP3_FORMAT) {
-  throw new Error('Edge-TTS: MP3 output format constant not found — check @andresaya/edge-tts Constants.OUTPUT_FORMAT.');
-}
-
-async function synthesizeChunkOnce(text, voice) {
-  const tts = new EdgeTTS();
-  await tts.synthesize(text, voice, { outputFormat: MP3_FORMAT });
-  const buffer = tts.toBuffer();
-  if (!buffer || buffer.length === 0) {
-    throw new Error('Edge-TTS returned empty audio.');
+async function synthesizeChunkOnce(text, voiceId, modelId) {
+  if (!config.elevenlabs.apiKey) {
+    throw new Error('ELEVENLABS_API_KEY is not set in Railway Variables.');
   }
-  return buffer;
+
+  const url = `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`;
+  try {
+    const response = await axios.post(
+      url,
+      {
+        text,
+        model_id: modelId,
+        voice_settings: { stability: 0.5, similarity_boost: 0.75 },
+      },
+      {
+        headers: {
+          'xi-api-key': config.elevenlabs.apiKey,
+          'Content-Type': 'application/json',
+          Accept: 'audio/mpeg',
+        },
+        responseType: 'arraybuffer',
+      }
+    );
+    const buffer = Buffer.from(response.data);
+    if (!buffer || buffer.length === 0) throw new Error('ElevenLabs returned empty audio.');
+    return buffer;
+  } catch (err) {
+    // ElevenLabs sends JSON error details even though we asked for binary —
+    // try to decode them so the real reason shows up in logs/errors.
+    let detail = err.message;
+    if (err.response?.data) {
+      try {
+        const decoded = JSON.parse(Buffer.from(err.response.data).toString('utf8'));
+        detail = decoded?.detail?.message || decoded?.detail || JSON.stringify(decoded);
+      } catch (_) {
+        // response wasn't JSON — keep the original message
+      }
+    }
+    const status = err.response?.status;
+    const wrapped = new Error(`ElevenLabs request failed${status ? ` (${status})` : ''}: ${detail}`);
+    wrapped.isRetryable = status === 429 || status >= 500;
+    throw wrapped;
+  }
 }
 
-async function synthesizeChunk(text, voice) {
+async function synthesizeChunk(text, voiceId, modelId) {
   let lastErr;
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
-      return await synthesizeChunkOnce(text, voice);
+      return await synthesizeChunkOnce(text, voiceId, modelId);
     } catch (err) {
       lastErr = err;
-      console.warn(`[TTS] Attempt ${attempt}/${MAX_RETRIES} failed: ${err.message}`);
-      if (attempt < MAX_RETRIES) {
-        await sleep(500 * attempt); // 0.5s, 1s, 1.5s backoff
-      }
+      console.warn(`[TTS/ElevenLabs] Attempt ${attempt}/${MAX_RETRIES} failed: ${err.message}`);
+      if (!err.isRetryable || attempt === MAX_RETRIES) throw err;
+      await sleep(800 * attempt);
     }
   }
-  throw new Error(`TTS failed after ${MAX_RETRIES} attempts: ${lastErr.message}`);
+  throw lastErr;
 }
 
-/**
- * Converts (potentially long) text into a single MP3 audio buffer, safely,
- * by chunking it internally and retrying flaky chunks automatically.
- */
 async function textToSpeech({ text, gender, language, voiceTone }) {
-  const voice = pickVoice(language, gender, voiceTone);
+  const voiceId = pickVoiceId(language, gender, voiceTone);
+  const modelId = isEnglish(language) ? 'eleven_multilingual_v2' : 'eleven_multilingual_v2';
   const textChunks = splitTextForTTS(text);
   const audioBuffers = [];
   for (let i = 0; i < textChunks.length; i++) {
     try {
-      const buf = await synthesizeChunk(textChunks[i], voice);
+      const buf = await synthesizeChunk(textChunks[i], voiceId, modelId);
       audioBuffers.push(buf);
     } catch (err) {
       throw new Error(`Chunk ${i + 1}/${textChunks.length} failed: ${err.message}`);
@@ -112,7 +137,6 @@ async function textToSpeech({ text, gender, language, voiceTone }) {
 /**
  * Matches the exact call signature used by routes/generate.js:
  *   tts.generateTTS(finalScript, language, voiceTone)
- * (positional args, no gender passed — defaults to female voice)
  */
 async function generateTTS(text, language, voiceTone) {
   return textToSpeech({ text, gender: 'female', language, voiceTone });
