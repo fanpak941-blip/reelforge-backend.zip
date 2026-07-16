@@ -3,11 +3,24 @@ const config = require('../config');
 
 // ElevenLabs "premade" voices — available on every account, no extra setup needed.
 const ENGLISH_VOICE_TONES = {
-  warm_friendly: 'EXAVITQu4vr4xnSDxMaL',    // Bella — soft, warm female
-  energetic_male: 'TxGEqnHWrfWFTfGW9XjX',   // Josh — energetic male
-  calm_female: '21m00Tcm4TlvDq8ikWAM',      // Rachel — calm, clear female
-  deep_authoritative: 'pNInz6obpgDQGcFmaJgB', // Adam — deep male
-  professional_female: 'AZnzlk1XvdvUeBnXmlld', // Domi — confident female
+  warm_friendly: 'EXAVITQu4vr4xnSDxMaL',
+  energetic_male: 'TxGEqnHWrfWFTfGW9XjX',
+  calm_female: '21m00Tcm4TlvDq8ikWAM',
+  deep_authoritative: 'pNInz6obpgDQGcFmaJgB',
+  professional_female: 'AZnzlk1XvdvUeBnXmlld',
+  antoni: 'ErXwobaYiN019PkySvjV',
+  arnold: 'VR6AewLTigWG4xSOukaG',
+  sam: 'yoZ06aMxZJJ28mfd3POQ',
+  glinda: 'z9fAnlkpzviPz146aGWa',
+  charlotte: 'XB0fDUnXU5powFXDhCwa',
+  daniel: 'onwK4e9ZLuTAKqWW03F9',
+  fin: 'D38z5RcWu1voky8WS1ja',
+  callum: 'N2lVS1w4EtoT3dr4eOWO',
+  liam: 'TX3LPaxmHKxFdv7VOQHJ',
+  matilda: 'XrExE9yKIg1WjnnlVkGX',
+  sarah: 'EXAVITQu4vr4xnSDxMaL',
+  alice: 'Xb7hH8MSUJpSbSDYk0k2',
+  grace: 'oWAxZDx7w5VEj9dCyTzz',
 };
 
 // For non-English languages we use the multilingual model with a
