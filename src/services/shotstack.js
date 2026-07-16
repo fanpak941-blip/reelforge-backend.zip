@@ -145,15 +145,26 @@ function buildEdit({ clips, audioUrl, aspectRatio, totalDurationSeconds, musicSt
 function extractShotstackError(err) {
   const data = err.response?.data;
   if (data) {
-    // Shotstack typically returns { message, response: { error / details } }
+    // Shotstack validation errors put the SPECIFIC field-level message(s)
+    // in response.details (array) — check that first. response.message is
+    // just a generic summary like "Found 1 validation error".
+    const details = data.response?.details;
+    const specific = Array.isArray(details) && details.length
+      ? details.map((d) => (typeof d === 'string' ? d : JSON.stringify(d))).join('; ')
+      : null;
+
     const detail =
+      specific ||
       data.response?.error ||
       data.response?.message ||
       data.message ||
-      (Array.isArray(data.response?.details) ? data.response.details.join('; ') : null) ||
       JSON.stringify(data);
+
     const status = err.response?.status;
-    return new Error(`Shotstack ${status ? `(${status}) ` : ''}${detail}`);
+    const fullError = new Error(`Shotstack ${status ? `(${status}) ` : ''}${detail}`);
+    fullError.rawResponse = data; // keep the full raw payload for logging
+    console.error('[Shotstack] Full error response:', JSON.stringify(data, null, 2));
+    return fullError;
   }
   return err;
 }
