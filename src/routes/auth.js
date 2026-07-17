@@ -67,7 +67,12 @@ router.post('/register', async (req, res) => {
     });
 
     if (email !== OWNER_EMAIL) {
-      await sendVerificationEmail(email, verificationToken);
+      // Don't block the response on email sending — send it in the
+      // background so a slow/failing SMTP server can't hang or time
+      // out the register request.
+      sendVerificationEmail(email, verificationToken).catch((err) => {
+        console.error('Failed to send verification email:', err.message);
+      });
     }
 
     const token = generateToken(user);
