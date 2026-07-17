@@ -64,6 +64,9 @@ passport.deserializeUser(async (id, done) => {
 
 const app = express();
 
+// Trust Railway's proxy
+app.set('trust proxy', 1);
+
 // Security
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors({ origin: ['https://reelforge2.vercel.app', 'http://localhost:3000'], credentials: true }));
