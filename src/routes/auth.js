@@ -88,8 +88,8 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ error: 'Email and password required.' });
 
     const user = await User.findOne({ email });
-    if (!user || !user.password)
-      return res.status(400).json({ error: 'Invalid email or password.' });
+   // if (!user.isVerified)
+//       return res.status(400).json({ error: 'Please verify your email first.' });
 
     const match = await user.comparePassword(password);
     if (!match)
