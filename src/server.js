@@ -1,4 +1,3 @@
-// Polyfill for older Node versions where global crypto isn't available
 if (!global.crypto) {
   global.crypto = require('crypto').webcrypto;
 }
@@ -6,24 +5,88 @@ if (!global.crypto) {
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const session = require('express-session');
+const passport = require('passport');
+const mongoose = require('mongoose');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
+
 const config = require('./config');
 const generateRoutes = require('./routes/generate');
+const authRoutes = require('./routes/auth');
+
+// MongoDB connect
+mongoose.connect(process.env.MONGODB_URI)
+  .then(() => console.log('MongoDB connected'))
+  .catch(err => console.error('MongoDB error:', err));
+
+// Google OAuth strategy
+const { Strategy: GoogleStrategy } = require('passport-google-oauth20');
+const User = require('./models/User');
+const OWNER_EMAIL = process.env.OWNER_EMAIL;
+
+passport.use(new GoogleStrategy({
+  clientID: process.env.GOOGLE_CLIENT_ID,
+  clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+  callbackURL: '/api/auth/google/callback',
+}, async (accessToken, refreshToken, profile, done) => {
+  try {
+    let user = await User.findOne({ googleId: profile.id });
+    if (!user) {
+      user = await User.findOne({ email: profile.emails[0].value });
+      if (user) {
+        user.googleId = profile.id;
+        user.isVerified = true;
+        await user.save();
+      } else {
+        const email = profile.emails[0].value;
+        user = await User.create({
+          name: profile.displayName,
+          email,
+          googleId: profile.id,
+          avatar: profile.photos[0]?.value,
+          isVerified: true,
+          plan: email === OWNER_EMAIL ? 'owner' : 'free',
+        });
+      }
+    }
+    return done(null, user);
+  } catch (err) {
+    return done(err);
+  }
+}));
+
+passport.serializeUser((user, done) => done(null, user._id));
+passport.deserializeUser(async (id, done) => {
+  const user = await User.findById(id);
+  done(null, user);
+});
 
 const app = express();
 
-// Allow your frontend (and any origin, for now) to call this API
-app.use(cors());
-app.use(express.json());
+// Security
+app.use(helmet({ contentSecurityPolicy: false }));
+app.use(cors({ origin: ['https://reelforge2.vercel.app', 'http://localhost:3000'], credentials: true }));
 
-// Serves generated voiceover audio files publicly, e.g. /audio/<id>.mp3
+// Rate limiting
+const limiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 100 });
+app.use('/api/', limiter);
+
+app.use(express.json());
+app.use(session({
+  secret: process.env.JWT_SECRET || 'reelforge_secret',
+  resave: false,
+  saveUninitialized: false,
+}));
+app.use(passport.initialize());
+app.use(passport.session());
+
 app.use('/audio', express.static(path.join(__dirname, '..', 'public', 'audio')));
 
-app.get('/', (req, res) => {
-  res.json({ status: 'ok', service: 'ReelForge backend', time: new Date().toISOString() });
-});
-
+app.get('/', (req, res) => res.json({ status: 'ok', service: 'ReelForge backend' }));
 app.get('/health', (req, res) => res.json({ ok: true }));
 
+app.use('/api/auth', authRoutes);
 app.use('/api', generateRoutes);
 
 app.listen(config.port, () => {
