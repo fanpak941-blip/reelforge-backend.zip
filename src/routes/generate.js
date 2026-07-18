@@ -11,6 +11,7 @@ const pexels = require('../services/pexels');
 const shotstack = require('../services/shotstack');
 const { requireAuth } = require('../authMiddleware');
 const User = require('../models/User');
+const Video = require('../models/Video');
 
 const router = express.Router();
 const upload = multer({ limits: { fieldSize: 2 * 1024 * 1024 } });
@@ -214,6 +215,23 @@ async function processJob(jobId, params) {
   }
 
   if (!videoUrl) throw new Error('Video render timed out. Please try again.');
+
+  // Save video to DB for dashboard
+  try {
+    const firstLine = finalScript.split(/[.!?\n]/)[0].trim().slice(0, 80) || 'Untitled Video';
+    await Video.create({
+      userId: params.userId,
+      title: params.topic || firstLine,
+      script: finalScript,
+      videoUrl,
+      duration: totalDurationSeconds,
+      niche: params.niche,
+      language: params.language,
+      aspectRatio: params.aspectRatio,
+    });
+  } catch (err) {
+    console.error('[Dashboard] Failed to save video to DB:', err.message);
+  }
 
   jobStore.completeJob(jobId, {
     videoPath: videoUrl,
