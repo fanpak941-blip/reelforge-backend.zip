@@ -10,6 +10,7 @@ const tts = require('../services/tts');
 const pexels = require('../services/pexels');
 const shotstack = require('../services/shotstack');
 const { requireAuth } = require('../authMiddleware');
+const User = require('../models/User');
 
 const router = express.Router();
 const upload = multer({ limits: { fieldSize: 2 * 1024 * 1024 } });
@@ -18,6 +19,29 @@ const AUDIO_DIR = path.join(__dirname, '..', '..', 'public', 'audio');
 if (!fs.existsSync(AUDIO_DIR)) fs.mkdirSync(AUDIO_DIR, { recursive: true });
 
 const OWNER_EMAIL = process.env.OWNER_EMAIL;
+
+// Plan limits (videos per month)
+const PLAN_LIMITS = {
+  free: 3,
+  starter: 3,
+  pro: 30,
+  owner: Infinity,
+};
+
+// Reset monthly count if a new month has started
+async function checkAndResetMonthlyCount(user) {
+  const now = new Date();
+  const lastReset = new Date(user.lastReset);
+  const sameMonth =
+    now.getFullYear() === lastReset.getFullYear() &&
+    now.getMonth() === lastReset.getMonth();
+
+  if (!sameMonth) {
+    user.videosGenerated = 0;
+    user.lastReset = now;
+    await user.save();
+  }
+}
 
 // POST /api/write-script
 router.post('/write-script', requireAuth, upload.none(), async (req, res) => {
@@ -42,22 +66,30 @@ router.post('/write-script', requireAuth, upload.none(), async (req, res) => {
 // POST /api/generate
 router.post('/generate', requireAuth, upload.none(), async (req, res) => {
   try {
-    const user = req.user; // set by authMiddleware — never trust frontend for this
+    // Always fetch fresh user from DB — never trust frontend
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(401).json({ error: 'User not found.' });
 
-    // Determine ownership purely from the verified token/user in DB
     const isOwner = user.plan === 'owner' || user.email === OWNER_EMAIL;
 
+    // Reset monthly count if needed
+    await checkAndResetMonthlyCount(user);
+
+    // Check plan limit
+    const limit = PLAN_LIMITS[user.plan] ?? 3;
+    if (!isOwner && user.videosGenerated >= limit) {
+      return res.status(403).json({
+        error: `You've used all ${limit} videos for this month on your ${user.plan} plan. Upgrade to generate more.`,
+        limitReached: true,
+        videosGenerated: user.videosGenerated,
+        limit,
+        plan: user.plan,
+      });
+    }
+
     const {
-      scriptText,
-      topic,
-      niche,
-      language,
-      gender,
-      aspectRatio,
-      style,
-      voiceTone,
-      musicStyle,
-      captionStyle,
+      scriptText, topic, niche, language, gender,
+      aspectRatio, style, voiceTone, musicStyle, captionStyle,
     } = req.body;
 
     if (!scriptText && !topic) {
@@ -65,15 +97,17 @@ router.post('/generate', requireAuth, upload.none(), async (req, res) => {
     }
 
     const usingFallbackStyle = style && style !== 'stock';
-
     const jobId = uuidv4();
     jobStore.createJob(jobId);
 
     const publicBaseUrl = `${req.protocol}://${req.get('host')}`;
 
+    // Increment count immediately so concurrent requests don't bypass limit
+    user.videosGenerated += 1;
+    await user.save();
+
     processJob(jobId, {
-      scriptText,
-      topic,
+      scriptText, topic,
       niche: niche || 'general',
       language: language || 'English',
       gender: gender || 'female',
@@ -84,12 +118,21 @@ router.post('/generate', requireAuth, upload.none(), async (req, res) => {
       publicBaseUrl,
       usingFallbackStyle,
       isOwner,
-    }).catch((err) => {
+      userId: user._id,
+    }).catch(async (err) => {
       console.error(`Job ${jobId} crashed:`, err);
       jobStore.failJob(jobId, err.message || 'Unexpected error');
+      // Refund the video count if job failed
+      await User.findByIdAndUpdate(user._id, { $inc: { videosGenerated: -1 } });
     });
 
-    res.json({ jobId });
+    res.json({
+      jobId,
+      videosGenerated: user.videosGenerated,
+      limit: isOwner ? null : limit,
+      remaining: isOwner ? null : Math.max(0, limit - user.videosGenerated),
+    });
+
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to start video generation.' });
@@ -162,12 +205,10 @@ async function processJob(jobId, params) {
     await sleep(5000);
     const render = await shotstack.getRenderStatus(renderId);
     status = render.status;
-
     if (status === 'done') { videoUrl = render.url; break; }
     if (status === 'failed') {
       throw new Error(`[Render/Shotstack] ${render.error || 'Video rendering failed.'}`);
     }
-
     const stageProgress = { queued: 72, fetching: 78, rendering: 88, saving: 95 };
     jobStore.setProgress(jobId, 'Rendering video', stageProgress[status] || 80);
   }
