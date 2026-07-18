@@ -9,7 +9,7 @@ const gemini = require('../services/gemini');
 const tts = require('../services/tts');
 const pexels = require('../services/pexels');
 const shotstack = require('../services/shotstack');
-const { requireAuth } = require('../authMiddleware');
+const { requireAuth } = require('../middleware/authMiddleware')
 const User = require('../models/User');
 const Video = require('../models/Video');
 
