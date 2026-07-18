@@ -9,16 +9,18 @@ const gemini = require('../services/gemini');
 const tts = require('../services/tts');
 const pexels = require('../services/pexels');
 const shotstack = require('../services/shotstack');
+const { requireAuth } = require('../authMiddleware');
 
 const router = express.Router();
-const upload = multer({ limits: { fieldSize: 2 * 1024 * 1024 } }); // 2MB per field — covers 30,000-char scripts
+const upload = multer({ limits: { fieldSize: 2 * 1024 * 1024 } });
 
 const AUDIO_DIR = path.join(__dirname, '..', '..', 'public', 'audio');
 if (!fs.existsSync(AUDIO_DIR)) fs.mkdirSync(AUDIO_DIR, { recursive: true });
 
-// POST /api/write-script -> "Write Script for Me" button.
-// Just generates the script text and returns it — does NOT start a video.
-router.post('/write-script', upload.none(), async (req, res) => {
+const OWNER_EMAIL = process.env.OWNER_EMAIL;
+
+// POST /api/write-script
+router.post('/write-script', requireAuth, upload.none(), async (req, res) => {
   try {
     const { topic, niche, wordCount, language } = req.body;
     if (!topic) return res.status(400).json({ error: 'Please provide a topic or title.' });
@@ -37,9 +39,14 @@ router.post('/write-script', upload.none(), async (req, res) => {
   }
 });
 
-// POST /api/generate  -> kicks off a video generation job, returns { jobId } immediately
-router.post('/generate', upload.none(), async (req, res) => {
+// POST /api/generate
+router.post('/generate', requireAuth, upload.none(), async (req, res) => {
   try {
+    const user = req.user; // set by authMiddleware — never trust frontend for this
+
+    // Determine ownership purely from the verified token/user in DB
+    const isOwner = user.plan === 'owner' || user.email === OWNER_EMAIL;
+
     const {
       scriptText,
       topic,
@@ -57,8 +64,6 @@ router.post('/generate', upload.none(), async (req, res) => {
       return res.status(400).json({ error: 'Please provide a script or a topic.' });
     }
 
-    // Phase 1 only supports real-life stock footage. AI Avatar / Image-to-Video /
-    // Mixed are planned for Phase 2 — fall back to stock footage instead of failing.
     const usingFallbackStyle = style && style !== 'stock';
 
     const jobId = uuidv4();
@@ -78,6 +83,7 @@ router.post('/generate', upload.none(), async (req, res) => {
       captionStyle: captionStyle || 'classic_white',
       publicBaseUrl,
       usingFallbackStyle,
+      isOwner,
     }).catch((err) => {
       console.error(`Job ${jobId} crashed:`, err);
       jobStore.failJob(jobId, err.message || 'Unexpected error');
@@ -90,8 +96,8 @@ router.post('/generate', upload.none(), async (req, res) => {
   }
 });
 
-// GET /api/generate/:jobId/status -> polled by the frontend every few seconds
-router.get('/generate/:jobId/status', (req, res) => {
+// GET /api/generate/:jobId/status
+router.get('/generate/:jobId/status', requireAuth, (req, res) => {
   const job = jobStore.getJob(req.params.jobId);
   if (!job) return res.status(404).json({ error: 'Job not found.' });
   res.json(job);
@@ -100,7 +106,7 @@ router.get('/generate/:jobId/status', (req, res) => {
 async function processJob(jobId, params) {
   const {
     scriptText, topic, niche, language, gender, aspectRatio, publicBaseUrl,
-    voiceTone, musicStyle, captionStyle, usingFallbackStyle,
+    voiceTone, musicStyle, captionStyle, usingFallbackStyle, isOwner,
   } = params;
 
   // 1) Script
@@ -114,8 +120,6 @@ async function processJob(jobId, params) {
     throw new Error(`[Script/Gemini] ${err.message}`);
   }
 
-  // Auto-duration: video length is always derived from the actual script
-  // length (≈150 spoken words/minute) — no manual duration picker needed.
   const wordCount = finalScript.split(/\s+/).filter(Boolean).length;
   const totalDurationSeconds = Math.max(20, Math.round((wordCount / 150) * 60));
 
@@ -131,7 +135,7 @@ async function processJob(jobId, params) {
     throw new Error(`[Voiceover/TTS] ${err.message}`);
   }
 
-  // 3) Matching stock footage
+  // 3) Visuals
   jobStore.setProgress(jobId, 'Finding visuals', 55);
   let clips;
   try {
@@ -140,7 +144,7 @@ async function processJob(jobId, params) {
     throw new Error(`[Visuals/Pexels] ${err.message}`);
   }
 
-  // 4) Assemble & render
+  // 4) Render
   jobStore.setProgress(jobId, 'Building your video', 70);
   const edit = shotstack.buildEdit({ clips, audioUrl, aspectRatio, totalDurationSeconds, musicStyle, captionStyle });
   let renderId;
@@ -150,19 +154,16 @@ async function processJob(jobId, params) {
     throw new Error(`[Render/Shotstack] ${err.message}`);
   }
 
-  // 5) Poll Shotstack until done
+  // 5) Poll until done
   let status = 'queued';
   let videoUrl = null;
-  const maxAttempts = 120; // ~10 minutes at 5s intervals
+  const maxAttempts = 120;
   for (let i = 0; i < maxAttempts; i++) {
     await sleep(5000);
     const render = await shotstack.getRenderStatus(renderId);
     status = render.status;
 
-    if (status === 'done') {
-      videoUrl = render.url;
-      break;
-    }
+    if (status === 'done') { videoUrl = render.url; break; }
     if (status === 'failed') {
       throw new Error(`[Render/Shotstack] ${render.error || 'Video rendering failed.'}`);
     }
@@ -177,8 +178,9 @@ async function processJob(jobId, params) {
     videoPath: videoUrl,
     script: finalScript,
     durationSeconds: totalDurationSeconds,
+    isOwner,
     note: usingFallbackStyle
-      ? 'AI Avatar / Image-to-Video / Mixed styles are coming in Phase 2 — this video was generated using real-life stock footage instead.'
+      ? 'AI Avatar / Image-to-Video / Mixed styles are coming in Phase 2 — generated using stock footage instead.'
       : undefined,
   });
 }
