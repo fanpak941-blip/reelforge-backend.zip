@@ -15,6 +15,7 @@ const config = require('./config');
 const generateRoutes = require('./routes/generate');
 const authRoutes = require('./routes/auth');
 const paddleRoutes = require('./routes/paddle');
+const videoRoutes = require('./routes/videos');
 
 // MongoDB connect
 mongoose.connect(process.env.MONGODB_URI)
@@ -96,6 +97,7 @@ app.get('/health', (req, res) => res.json({ ok: true }));
 
 app.use('/api/auth', authRoutes);
 app.use('/api', generateRoutes);
+app.use('/api', videoRoutes);
 
 app.listen(config.port, () => {
   console.log(`ReelForge backend running on port ${config.port}`);
