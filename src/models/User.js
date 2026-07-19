@@ -11,7 +11,8 @@ const userSchema = new mongoose.Schema({
   verificationToken: { type: String },
   resetPasswordToken: { type: String },
   resetPasswordExpires: { type: Date },
-  plan: { type: String, enum: ['free', 'pro', 'owner'], default: 'free' },
+  plan: { type: String, enum: ['free', 'starter', 'pro', 'owner'], default: 'free' },
+  stripeCustomerId: { type: String },
   videosGenerated: { type: Number, default: 0 },
   lastReset: { type: Date, default: Date.now },
   createdAt: { type: Date, default: Date.now },
@@ -23,7 +24,6 @@ userSchema.pre('save', async function (next) {
   next();
 });
 
-// ← YEH ADD KARO
 userSchema.methods.comparePassword = async function (candidatePassword) {
   if (!this.password) return false;
   return bcrypt.compare(candidatePassword, this.password);
