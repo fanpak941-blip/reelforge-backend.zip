@@ -15,6 +15,7 @@ const config = require('./config');
 const generateRoutes = require('./routes/generate');
 const authRoutes = require('./routes/auth');
 const videoRoutes = require('./routes/videos');
+const stripeRoutes = require('./routes/stripe');
 
 // MongoDB connect
 mongoose.connect(process.env.MONGODB_URI)
@@ -76,6 +77,8 @@ app.use(cors({ origin: ['https://reelforge2.vercel.app', 'http://localhost:3000'
 const limiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 100 });
 app.use('/api/', limiter);
 
+// Stripe webhook needs raw body — mount BEFORE express.json()
+app.use('/api/stripe/webhook', express.raw({ type: 'application/json' }));
 app.use(express.json());
 app.use(session({
   secret: process.env.JWT_SECRET || 'reelforge_secret',
@@ -93,6 +96,7 @@ app.get('/health', (req, res) => res.json({ ok: true }));
 app.use('/api/auth', authRoutes);
 app.use('/api', generateRoutes);
 app.use('/api', videoRoutes);
+app.use('/api/stripe', stripeRoutes);
 
 app.listen(config.port, () => {
   console.log(`ReelForge backend running on port ${config.port}`);
