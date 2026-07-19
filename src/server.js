@@ -14,7 +14,6 @@ const rateLimit = require('express-rate-limit');
 const config = require('./config');
 const generateRoutes = require('./routes/generate');
 const authRoutes = require('./routes/auth');
-const paddleRoutes = require('./routes/paddle');
 const videoRoutes = require('./routes/videos');
 
 // MongoDB connect
@@ -76,10 +75,6 @@ app.use(cors({ origin: ['https://reelforge2.vercel.app', 'http://localhost:3000'
 // Rate limiting
 const limiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 100 });
 app.use('/api/', limiter);
-
-// IMPORTANT: Paddle webhook needs raw body BEFORE express.json()
-// So we mount paddle route first with its own body parser
-app.use('/api/webhook', paddleRoutes);
 
 app.use(express.json());
 app.use(session({
