@@ -67,9 +67,6 @@ router.post('/register', async (req, res) => {
     });
 
     if (email !== OWNER_EMAIL) {
-      // Don't block the response on email sending — send it in the
-      // background so a slow/failing SMTP server can't hang or time
-      // out the register request.
       sendVerificationEmail(email, verificationToken).catch((err) => {
         console.error('Failed to send verification email:', err.message);
       });
@@ -78,7 +75,7 @@ router.post('/register', async (req, res) => {
     const token = generateToken(user);
     res.json({
       token,
-      user: { id: user._id, name: user.name, email: user.email, plan: user.plan, isVerified: user.isVerified },
+      user: { id: user._id, name: user.name, email: user.email, plan: user.plan, avatar: user.avatar, isVerified: user.isVerified },
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -92,21 +89,20 @@ router.post('/login', async (req, res) => {
     if (!email || !password)
       return res.status(400).json({ error: 'Email and password required.' });
 
+    // FIX: check user exists before calling comparePassword
     const user = await User.findOne({ email });
-    // if (!user.isVerified)
-    //   return res.status(400).json({ error: 'Please verify your email first.' });
+    if (!user)
+      return res.status(400).json({ error: 'Invalid email or password.' });
 
     const match = await user.comparePassword(password);
     if (!match)
       return res.status(400).json({ error: 'Invalid email or password.' });
 
-    // if (!user.isVerified)
-    //   return res.status(400).json({ error: 'Please verify your email first.' });
-
+    // Always fetch fresh plan from DB so token reflects latest plan
     const token = generateToken(user);
     res.json({
       token,
-      user: { id: user._id, name: user.name, email: user.email, plan: user.plan, isVerified: user.isVerified },
+      user: { id: user._id, name: user.name, email: user.email, plan: user.plan, avatar: user.avatar, isVerified: user.isVerified },
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -136,23 +132,37 @@ router.get('/google', passport.authenticate('google', { scope: ['profile', 'emai
 
 // GET /api/auth/google/callback
 router.get('/google/callback',
-  passport.authenticate('google', { failureRedirect: `${FRONTEND_URL}?error=google` }),
+  passport.authenticate('google', { failureRedirect: `${FRONTEND_URL}?error=google_failed` }),
   (req, res) => {
+    // FIX: fetch fresh user so plan is always up to date
     const token = generateToken(req.user);
     res.redirect(`${FRONTEND_URL}?token=${token}`);
   }
 );
 
-// GET /api/auth/me
+// GET /api/auth/me  — refresh user info (called on page load)
 router.get('/me', async (req, res) => {
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader) return res.status(401).json({ error: 'No token.' });
     const token = authHeader.replace('Bearer ', '');
     const decoded = jwt.verify(token, JWT_SECRET);
+
+    // Always return fresh data from DB — not just what's in the token
     const user = await User.findById(decoded.id).select('-password -verificationToken');
     if (!user) return res.status(404).json({ error: 'User not found.' });
-    res.json({ user });
+
+    res.json({
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        plan: user.plan,
+        avatar: user.avatar,
+        isVerified: user.isVerified,
+        videosGenerated: user.videosGenerated,
+      }
+    });
   } catch (err) {
     res.status(401).json({ error: 'Invalid token.' });
   }
