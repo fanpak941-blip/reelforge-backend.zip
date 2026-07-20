@@ -9,7 +9,7 @@ const gemini = require('../services/gemini');
 const tts = require('../services/tts');
 const pexels = require('../services/pexels');
 const shotstack = require('../services/shotstack');
-const { requireAuth } =require('../middleware/auth')
+const { requireAuth } = require('../authMiddleware');
 const User = require('../models/User');
 const Video = require('../models/Video');
 
@@ -23,10 +23,11 @@ const OWNER_EMAIL = process.env.OWNER_EMAIL;
 
 // Plan limits (videos per month)
 const PLAN_LIMITS = {
-  free: 3,
-  starter: 3,
-  pro: 30,
-  owner: Infinity,
+  free:    3,
+  starter: 10,
+  pro:     50,
+  max:     Infinity,
+  owner:   Infinity,
 };
 
 // Reset monthly count if a new month has started
