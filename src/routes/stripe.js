@@ -41,8 +41,20 @@ router.post('/create-checkout', requireAuth, async (req, res) => {
 
     res.json({ url: session.url });
   } catch (err) {
-    console.error('[Stripe] Checkout error:', err.message);
-    res.status(500).json({ error: 'Failed to create checkout session.' });
+    console.error('[Stripe] Checkout error FULL:', JSON.stringify({
+      message: err.message,
+      type: err.type,
+      code: err.code,
+      param: err.param,
+      stripeKey: process.env.STRIPE_SECRET_KEY ? 'SET' : 'MISSING',
+      priceId: process.env.STRIPE_PRICE_STARTER ? 'SET' : 'MISSING',
+      frontendUrl: process.env.FRONTEND_URL ? 'SET' : 'MISSING',
+    }));
+    res.status(500).json({ 
+      error: 'Failed to create checkout session.',
+      detail: err.message,
+      code: err.code
+    });
   }
 });
 
