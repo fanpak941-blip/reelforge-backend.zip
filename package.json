@@ -27,7 +27,9 @@
     "nodemailer": "^6.9.0",
     "express-rate-limit": "^7.0.0",
     "helmet": "^7.0.0",
-    "stripe": "^14.0.0"
+    "stripe": "^14.0.0",
+    "express-mongo-sanitize": "^2.2.0",
+    "hpp": "^0.2.3"
   },
   "engines": {
     "node": ">=18.0.0"
