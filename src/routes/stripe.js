@@ -7,6 +7,8 @@ const router = express.Router();
 
 const PRICE_TO_PLAN = {
   [process.env.STRIPE_PRICE_STARTER]: 'starter',
+  [process.env.STRIPE_PRICE_PRO]:     'pro',
+  [process.env.STRIPE_PRICE_MAX]:     'max',
 };
 
 // POST /api/stripe/create-checkout
@@ -29,14 +31,23 @@ router.post('/create-checkout', requireAuth, async (req, res) => {
       await user.save();
     }
 
+    // Select price based on plan requested
+    const planType = req.body.plan || 'starter';
+    const priceMap = {
+      starter: process.env.STRIPE_PRICE_STARTER,
+      pro:     process.env.STRIPE_PRICE_PRO,
+      max:     process.env.STRIPE_PRICE_MAX,
+    };
+    const priceId = priceMap[planType] || process.env.STRIPE_PRICE_STARTER;
+
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       payment_method_types: ['card'],
-      line_items: [{ price: process.env.STRIPE_PRICE_STARTER, quantity: 1 }],
+      line_items: [{ price: priceId, quantity: 1 }],
       mode: 'subscription',
       success_url: `${process.env.FRONTEND_URL}?upgraded=true`,
       cancel_url: `${process.env.FRONTEND_URL}?upgraded=false`,
-      metadata: { userId: user._id.toString() },
+      metadata: { userId: user._id.toString(), plan: planType },
     });
 
     res.json({ url: session.url });
