@@ -171,6 +171,32 @@ app.get('/', (req, res) => res.json({ status: 'ok', service: 'ReelForge API' }))
 app.get('/health', (req, res) => res.json({ ok: true, ts: Date.now() }));
 
 // ─── ROUTES ──────────────────────────────────────────────────────────────────
+// Voice preview endpoint — returns audio buffer
+app.post('/api/voice-preview', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) return res.status(401).json({ error: 'Login required.' });
+    
+    const { text, voice, language } = req.body;
+    const tts = require('./services/tts');
+    
+    const voiceParts = (voice || 'english-warm_friendly').split('-');
+    const lang = voiceParts[0].charAt(0).toUpperCase() + voiceParts[0].slice(1);
+    const tone = voiceParts.slice(1).join('_');
+    const gender = voice && voice.includes('male') && !voice.includes('female') ? 'male' : 'female';
+    
+    const sampleText = text || 'Hello! Welcome to ReelForge AI video platform.';
+    const audioBuffer = await tts.generateTTS(sampleText.slice(0, 200), lang, tone, gender);
+    
+    res.set('Content-Type', 'audio/mpeg');
+    res.send(audioBuffer);
+  } catch (err) {
+    console.error('[Voice Preview]', err.message);
+    res.status(500).json({ error: 'Voice preview failed.' });
+  }
+});
+
+
 app.use('/api/auth', authRoutes);
 app.use('/api', generateRoutes);
 app.use('/api', videoRoutes);
