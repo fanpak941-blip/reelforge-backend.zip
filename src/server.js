@@ -91,15 +91,27 @@ app.use(helmet({
 // ─── CORS ────────────────────────────────────────────────────────────────────
 const ALLOWED_ORIGINS = [
   'https://reelforge2.vercel.app',
+  'https://www.reelforge2.vercel.app',
   'http://localhost:3000',
+  'http://localhost:5500',
 ];
 app.use(cors({
   origin: (origin, cb) => {
-    if (!origin || ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
-    cb(new Error('CORS not allowed'));
+    // Allow requests with no origin (mobile apps, curl, etc)
+    if (!origin) return cb(null, true);
+    if (ALLOWED_ORIGINS.some(o => origin.startsWith(o) || origin === o)) {
+      return cb(null, true);
+    }
+    console.warn('[CORS] Blocked origin:', origin);
+    cb(null, false);
   },
   credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
 }));
+
+// Handle preflight
+app.options('*', cors());
 
 // ─── RATE LIMITING ───────────────────────────────────────────────────────────
 // General API limit
