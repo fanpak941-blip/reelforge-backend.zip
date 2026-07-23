@@ -48,7 +48,8 @@ async function sendVerificationEmail(email, token) {
 // POST /api/auth/register
 router.post('/register', async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, password } = req.body;
+    const email = (req.body.email || '').trim().toLowerCase();
     if (!name || !email || !password)
       return res.status(400).json({ error: 'All fields are required.' });
     if (password.length < 8)
@@ -85,7 +86,8 @@ router.post('/register', async (req, res) => {
 // POST /api/auth/login
 router.post('/login', async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { password } = req.body;
+    const email = (req.body.email || '').trim().toLowerCase();
     if (!email || !password)
       return res.status(400).json({ error: 'Email and password required.' });
 
