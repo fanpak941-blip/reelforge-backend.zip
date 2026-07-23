@@ -144,12 +144,19 @@ router.get('/google/callback',
 
 // GET /api/auth/me  — refresh user info (called on page load)
 router.get('/me', async (req, res) => {
-  try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader) return res.status(401).json({ error: 'No token.' });
-    const token = authHeader.replace('Bearer ', '');
-    const decoded = jwt.verify(token, JWT_SECRET);
+  const authHeader = req.headers.authorization;
+  if (!authHeader) return res.status(401).json({ error: 'No token.' });
+  const token = authHeader.replace('Bearer ', '');
 
+  let decoded;
+  try {
+    decoded = jwt.verify(token, JWT_SECRET);
+  } catch (err) {
+    // Only a genuinely bad/expired token should be 401
+    return res.status(401).json({ error: 'Invalid token.' });
+  }
+
+  try {
     // Always return fresh data from DB — not just what's in the token
     const user = await User.findById(decoded.id).select('-password -verificationToken');
     if (!user) return res.status(404).json({ error: 'User not found.' });
@@ -166,7 +173,9 @@ router.get('/me', async (req, res) => {
       }
     });
   } catch (err) {
-    res.status(401).json({ error: 'Invalid token.' });
+    // DB/server error — NOT an invalid token, use 500 so frontend doesn't force logout
+    console.error('[/me] DB error:', err.message);
+    res.status(500).json({ error: 'Server error. Please try again.' });
   }
 });
 
