@@ -19,6 +19,7 @@ const authRoutes = require('./routes/auth');
 const videoRoutes = require('./routes/videos');
 const stripeRoutes = require('./routes/stripe');
 const avatarRoutes = require('./routes/did');
+const heygenRoutes = require('./routes/heygen');
 
 // MongoDB connect
 mongoose.connect(process.env.MONGODB_URI)
@@ -199,6 +200,7 @@ app.use('/api', generateRoutes);
 app.use('/api', videoRoutes);
 app.use('/api/stripe', stripeRoutes);
 app.use('/api', avatarRoutes);
+app.use('/api', heygenRoutes);
 
 // ─── GLOBAL ERROR HANDLER ────────────────────────────────────────────────────
 app.use((err, req, res, next) => {
