@@ -20,6 +20,7 @@ const videoRoutes = require('./routes/videos');
 const stripeRoutes = require('./routes/stripe');
 const avatarRoutes = require('./routes/did');
 const heygenRoutes = require('./routes/heygen');
+const seoRoutes = require('./routes/seo');
 
 // MongoDB connect
 mongoose.connect(process.env.MONGODB_URI)
@@ -201,6 +202,7 @@ app.use('/api', videoRoutes);
 app.use('/api/stripe', stripeRoutes);
 app.use('/api', avatarRoutes);
 app.use('/api', heygenRoutes);
+app.use('/api', seoRoutes);
 
 // ─── GLOBAL ERROR HANDLER ────────────────────────────────────────────────────
 app.use((err, req, res, next) => {
