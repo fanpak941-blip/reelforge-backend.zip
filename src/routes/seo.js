@@ -19,9 +19,9 @@ router.post('/seo/generate', requireAuth, async (req, res) => {
     // Try gemini-1.5-flash first, fallback to gemini-pro
     let model;
     try {
-      model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+      model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash-latest' });
     } catch (e) {
-      model = genAI.getGenerativeModel({ model: 'gemini-pro' });
+      model = genAI.getGenerativeModel({ model: 'gemini-1.0-pro' });
     }
  
     const prompt = `You are a YouTube SEO expert. Generate a complete YouTube SEO package for this video.
